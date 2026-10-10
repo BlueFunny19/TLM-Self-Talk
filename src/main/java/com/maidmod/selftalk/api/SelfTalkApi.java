@@ -9,6 +9,8 @@ import com.maidmod.selftalk.SelfTalkDispatcher;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
 
+import java.util.UUID;
+
 /**
  * TLM Self-Talk 对外公开 API（供其他附属 Mod 在服务端调用）。
  * <p>
@@ -120,7 +122,9 @@ public final class SelfTalkApi {
         InterChatChain chain = InterChatChain.create(from, to);
         boolean accepted;
         try {
-            accepted = SelfTalkDispatcher.submitInterChatResponder(to, from, text,
+            // 转告内容没有走过 Self Talk 的互聊窗口，给它一个新的消息身份：
+            // 回答者回复成功后会按这个身份把转告的话同步进自己的互聊窗口，之后的对话里能记得对方说过什么
+            accepted = SelfTalkDispatcher.submitInterChatResponder(to, from, UUID.randomUUID(), text,
                     Config.INTER_CHAT_PLAYER_RANGE.get(), 1, chain.id());
         } catch (Throwable t) {
             // 派发闸门内部异常：释放刚建的链，绝不让调用方看到异常
