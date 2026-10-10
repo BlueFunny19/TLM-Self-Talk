@@ -697,9 +697,19 @@ public final class SelfTalkContexts {
         return "\n\n" + body;
     }
 
-    /** 说明句中英选择口径：与 OWNER_CHAT_DECLARATION 相同的语言起始码判定 */
-    private static boolean isZh(String language) {
+    /**
+     * 语言是否中文（提示词中英选择的统一口径）：与 OWNER_CHAT_DECLARATION 相同的语言起始码判定。
+     * 先经 {@link #sanitizeLanguage} 校验，非法或缺失标签按默认中文处理。
+     * <p>
+     * 公共可见：{@link SleepTalkPrompts} 的调用方（睡眠功能）据此选中／英文版本。
+     */
+    public static boolean isChinese(String language) {
         return sanitizeLanguage(language).startsWith("zh");
+    }
+
+    /** 说明句中英选择口径：与 {@link #isChinese} 同源 */
+    private static boolean isZh(String language) {
+        return isChinese(language);
     }
 
     // ===== 历史上下文模式的固定说明段 =====

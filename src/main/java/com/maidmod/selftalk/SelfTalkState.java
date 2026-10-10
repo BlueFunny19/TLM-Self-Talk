@@ -125,5 +125,21 @@ public final class SelfTalkState {
          * 受伤采样冷却计时器随缓冲一并保存，且不因消费而重置。
          */
         public final SelfTalkEventBuffer eventBuffer = new SelfTalkEventBuffer();
+
+        // ===== 睡眠：梦话与叫不醒 =====
+        /** 下次可触发梦话的服务器 tick（同一只熟睡女仆两次梦话之间的随机间隔，各自独立） */
+        public long nextSleepTalkTick = 0;
+        /** 是否有梦话／迷糊嘟囔请求正在进行（回复未返回） */
+        public boolean sleepTalkPending = false;
+        /** sleepTalkPending 置位时的服务器 tick（-1 = 未置位） */
+        public long sleepTalkPendingSinceTick = -1;
+        /** 「叫不醒」连叫记录（已叫次数、本轮需要次数、上次叫的时间） */
+        public final WakeResistance.Calls wakeCalls = new WakeResistance.Calls();
+        /** 最近一次被叫醒的服务器 tick（-1 = 无）：醒来后第一次正常回复据此附提示，用后立即清除 */
+        public long justWokenTick = -1;
+        /** 被叫醒后保持清醒的截止 tick（0 = 不处理）；期间若又睡着会被再次叫醒 */
+        public long stayAwakeUntilTick = 0;
+        /** 下次复查「刚被叫醒期间又睡着」的服务器 tick（不必每 tick 复查） */
+        public long nextStayAwakeCheckTick = 0;
     }
 }

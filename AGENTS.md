@@ -6,7 +6,7 @@
 
 ## 项目概况
 
-- 东方小女仆（TLM 1.5.3，Modrinth maven）的附属 mod：女仆 AI 自言自语 / 主人登录欢迎语 / 女仆互聊，附玩家级设置（自话、互聊、睡觉安静、自定义 Prompt、Tool 调用）与环境事件上下文注入
+- 东方小女仆（TLM 1.5.3，Modrinth maven）的附属 mod：女仆 AI 自言自语 / 主人登录欢迎语 / 女仆互聊 / 睡眠（梦话与叫不醒），附玩家级设置（自话、互聊、睡觉安静、自定义 Prompt、Tool 调用）与环境事件上下文注入
 - **双分支双线**：
   - `neoforge-1.21.1` 分支（GitHub 默认分支）：NeoForge 1.21.1（NeoForge 21.1.219 / ModDevGradle 2.0.95 / Java 21；TLM 1.5.3-neoforge+mc1.21.1）
   - `forge-1.20.1` 分支：Forge 1.20.1（Forge 47.2.0 / ForgeGradle 6 + parchment + mixingradle / Java 17；TLM 1.5.3-forge+mc1.20.1，fg.deobf）
@@ -22,13 +22,13 @@
 ## 架构（src/main/java/com/maidmod/selftalk）
 
 - 触发与调度：`SelfTalkHandler`（服务端状态机，事件驱动）/ `SelfTalkDispatcher`（派发闸门：立即派发 / 顺延入队 / 吞请求，单一入口）
-- 业务服务与回调：`MaidSelfTalkService`（自话）/ `MaidInterChatService`（互聊）/ `SelfTalkCallback`、`InterChatCallback`（两条链的回调，含 Tool 轮次与历史清理）
-- 提示词与上下文：`SelfTalkPrompts`（硬编码提示词与 tool policy 段）/ `SelfTalkContexts`（环境上下文、语言指令、自定义 Prompt 块）/ `SegmentTags`（段标签与玩家输入清洗）/ `SelfTalkProvenance`（来源指纹判定）
+- 业务服务与回调：`MaidSelfTalkService`（自话）/ `MaidInterChatService`（互聊）/ `MaidSleepTalkService`（睡眠：梦话与叫不醒嘟囔）/ `SelfTalkCallback`、`InterChatCallback`、`SleepTalkCallback`（三条链的回调；SleepTalk 不写 TLM 历史、不带 Tool、无等待气泡）
+- 提示词与上下文：`SelfTalkPrompts`（硬编码提示词与 tool policy 段）/ `SleepTalkPrompts`（睡眠三段提示词，中英各一套，不可改写）/ `SelfTalkContexts`（环境上下文、语言指令、`isChinese` 语言判定、自定义 Prompt 块）/ `SegmentTags`（段标签与玩家输入清洗）/ `SelfTalkProvenance`（来源指纹判定）
 - 存储与状态：`PlayerSettingsStore`（玩家设置统一读写口）/ `SelfTalkState`（服务端内存状态）/ `SelfTalkMigration`（1.1.2 存储迁移）
   - neoforge 线另有 `SelfTalkAttachments`（Level 附件注册）；forge 线另有 `PlayerSettingsSavedData`（overworld SavedData）、`SelfTalkProvenanceHost`（无附件，经 mixin 挂接口）
 - `client/`：仅客户端 —— `SelfTalkClothConfig`（管理员配置界面，反射注册）、`SelfTalkPlayerSettingsClient`（客户端设置缓存）、`SelfTalkPlayerSettingsScreen`（玩家开关/Prompt 界面）
-- `mixin/`：TLM 钩子（玩家 chat 入口标记、AIChatScreen 加 💬 按钮、LLMCallback、历史摘要、女仆 AI 数据；forge 线另有女仆指纹挂载）
-- `network/`：5 组 payload（自话 / 互聊 / 睡觉安静 / 自定义 Prompt / Tool，各 request/response/set），协议版本串 `5`
+- `mixin/`：TLM 钩子（玩家 chat 入口标记、chat() HEAD 的「叫不醒」拦截、AIChatScreen 加 💬 按钮、LLMCallback、历史摘要、女仆 AI 数据；forge 线另有女仆指纹挂载）
+- `network/`：5 组 payload（自话 / 互聊 / 睡觉安静 / 自定义 Prompt / Tool，各 request/response/set），协议版本串 `5`；睡眠功能**无新增网络包**（管理员级配置，走 COMMON 配置）
 - 代码注释与 git 提交信息使用中文；避免引入非必要依赖
 
 ## 关键约定与陷阱
@@ -42,4 +42,5 @@
 - 欢迎窗口计时必须用 `server.getTickCount()`（全局单调 tick）；各维度 `gameTime` 独立计数，跨维度比较会出现负差
 - **限流闸门**：欢迎语全局每秒最多 1 次（`rate_limit.maxTriggerPerSecond`）；自话全局每 5~8 秒（`rate_limit.selfTalkMinIntervalSeconds` / `selfTalkMaxIntervalSeconds`）放行 1 只，**互聊发起者派发共用同一自话闸门**（链式续接不走闸门）；被限流自话**不发请求**、随机退避 8~15 秒重试（玩家聊天框不会出现报错）；欢迎语无退避、窗口期内每 tick 重试，排队若在窗口期内未轮到会错过该次欢迎
 - **环境事件过滤**：死亡事件固定过滤为玩家、有主动物、其他女仆——「有主动物」必须按 `OwnableEntity` 判定（马/驴/骡等坐骑不继承 `TamableAnimal` 但同样有主人）；受伤事件必须用**实际掉血**事件（neo `LivingDamageEvent.Post` / forge `LivingDamageEvent`），更早的 incoming/hurt 事件在格挡成功或减免到 0 时仍会以正数触发
+- **睡眠功能（梦话 / 叫不醒）**：配置在 `sleep` 分组（`SLEEP_TALK_*`、`WAKE_*`），仅管理员级、无玩家级开关。梦话由 `SelfTalkHandler.tickSleepTalk` 在熟睡时按每只各自的随机间隔触发，**与玩家设置「睡觉时安静」互不影响**（安静只拦自话/互聊/欢迎），并与自话共用 5~8 秒全局闸门、共用 `SelfTalkState.sleepTalkPending` 的「同一只女仆同时只有一个在途请求」约束。「叫不醒」在 `MaidAIChatManager#chat` HEAD 做可取消注入：同点有另一附属 Mod 的可取消注入且顺序不稳定，必须先查 `ci.isCancelled()`；HEAD 取消 = 方法体完全不执行（token 计数、历史、气泡、`normalChat` 均无副作用）。判定必须在 `MaidSleepTalkService.interceptPlayerChat` 内限制为「真玩家 + 主人或 8 格内」，避免拦到其它 Mod 经 `chat()` 发起的内部调用。醒来后的第一次回复通过 `normalChat` 内 `LLMMessage.userChat` 的既有 @Redirect 追加 `SleepTalkPrompts.wakeUpNote`（只改请求体、不写 TLM 历史，30 秒有效、用后即清）。入睡机制：`MaidBedTask` 在 `Activity.REST` 下调用 `startSleeping`，`MaidClearSleepTask`（CORE）仅在非 REST 时 `stopSleeping`——因此「醒后保持清醒」选择**不改日程**的做法：`WAKE_STAY_AWAKE_SECONDS` 内每 10 tick 对又睡着的女仆再 `stopSleeping()`。
 - cloth-config 界面通过反射注册（`MaidSelfTalkMod.registerClothConfigIfPresent`），未装 cloth-config 时自动跳过、不影响核心功能

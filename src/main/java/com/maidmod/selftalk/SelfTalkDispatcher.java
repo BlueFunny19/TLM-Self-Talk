@@ -64,7 +64,20 @@ public final class SelfTalkDispatcher {
     public static void requestInterChatResponder(EntityMaid responder, EntityMaid initiator,
                                                  String peerText, double broadcastRange, int chainRound,
                                                  long chainId) {
-        submit(responder, new SelfTalkState.DeferredRequest(
+        submitInterChatResponder(responder, initiator, peerText, broadcastRange, chainRound, chainId);
+    }
+
+    /**
+     * 互聊回答者（链式续接）派发请求，并返回请求是否被受理（false = 被吞）。
+     * <p>
+     * 语义与 {@link #requestInterChatResponder} 完全一致；对外 API 需要区分「受理 / 被吞」，
+     * 才能在失败路径释放随请求创建的链，故单独提供带返回值的入口。
+     * 注意：返回 true 只表示已入队或已尝试立即派发（立即派发同步失败时 dispatchNow 会自行释放链）。
+     */
+    public static boolean submitInterChatResponder(EntityMaid responder, EntityMaid initiator,
+                                                   String peerText, double broadcastRange, int chainRound,
+                                                   long chainId) {
+        return submit(responder, new SelfTalkState.DeferredRequest(
                 SelfTalkState.RequestKind.INTER_CHAT_RESPONDER, initiator, peerText, 0, broadcastRange,
                 chainRound, chainId));
     }
@@ -145,7 +158,8 @@ public final class SelfTalkDispatcher {
         if (maid.isSleeping() && PlayerSettingsStore.isSleepQuietForMaid(maid.level().getServer(), maid)) {
             return true;
         }
-        return state.selfTalkPending || state.interChatPending || state.playerChatCount > 0;
+        return state.selfTalkPending || state.interChatPending || state.sleepTalkPending
+                || state.playerChatCount > 0;
     }
 
     /**
@@ -187,7 +201,8 @@ public final class SelfTalkDispatcher {
                 // 注意锁语义:peer 与本人的配对锁=链进行中(放行);被他人锁定=漂移(断链)
                 SelfTalkState.State peerState = SelfTalkState.get(req.peer().getId());
                 Integer peerPartner = currentPairPartner(req.peer(), nowTick);
-                if (peerState.selfTalkPending || peerState.interChatPending || peerState.playerChatCount > 0
+                if (peerState.selfTalkPending || peerState.interChatPending || peerState.sleepTalkPending
+                        || peerState.playerChatCount > 0
                         || (req.peer().isSleeping()
                         && PlayerSettingsStore.isSleepQuietForMaid(req.peer().level().getServer(), req.peer()))
                         || (peerPartner != null && !peerPartner.equals(maid.getId()))) {

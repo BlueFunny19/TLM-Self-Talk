@@ -243,6 +243,83 @@ public final class SelfTalkClothConfig {
                 .build());
         main.add(maidIdentity.build());
 
+        // 子页：睡眠（梦话与叫不醒；默认值与 Config 定义保持一致）
+        SubCategoryBuilder sleep = entryBuilder.startSubCategory(
+                        Component.translatable("config.maid_self_talk.sleep"))
+                .setExpanded(false)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.tooltip"));
+        sleep.add(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.maid_self_talk.sleep.enabled"),
+                        Config.SLEEP_TALK_ENABLED.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.enabled.tooltip"))
+                .setSaveConsumer(v -> saveBool(Config.SLEEP_TALK_ENABLED, v))
+                .build());
+        sleep.add(entryBuilder.startIntField(
+                        Component.translatable("config.maid_self_talk.sleep.min_interval"),
+                        Config.SLEEP_TALK_MIN_INTERVAL.get())
+                .setMin(30).setMax(7200)
+                .setDefaultValue(180)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.min_interval.tooltip"))
+                .setSaveConsumer(v -> saveInt(Config.SLEEP_TALK_MIN_INTERVAL, v))
+                .build());
+        sleep.add(entryBuilder.startIntField(
+                        Component.translatable("config.maid_self_talk.sleep.max_interval"),
+                        Config.SLEEP_TALK_MAX_INTERVAL.get())
+                .setMin(30).setMax(7200)
+                .setDefaultValue(600)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.max_interval.tooltip"))
+                .setSaveConsumer(v -> saveInt(Config.SLEEP_TALK_MAX_INTERVAL, v))
+                .build());
+        sleep.add(entryBuilder.startDoubleField(
+                        Component.translatable("config.maid_self_talk.sleep.player_range"),
+                        Config.SLEEP_TALK_PLAYER_RANGE.get())
+                .setMin(0.0).setMax(512.0)
+                .setDefaultValue(16.0)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.player_range.tooltip"))
+                .setSaveConsumer(v -> saveDouble(Config.SLEEP_TALK_PLAYER_RANGE, v))
+                .build());
+        sleep.add(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.maid_self_talk.sleep.wake_resistance_enabled"),
+                        Config.WAKE_RESISTANCE_ENABLED.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.wake_resistance_enabled.tooltip"))
+                .setSaveConsumer(v -> saveBool(Config.WAKE_RESISTANCE_ENABLED, v))
+                .build());
+        sleep.add(entryBuilder.startIntField(
+                        Component.translatable("config.maid_self_talk.sleep.wake_min_calls"),
+                        Config.WAKE_MIN_CALLS.get())
+                .setMin(1).setMax(20)
+                .setDefaultValue(2)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.wake_min_calls.tooltip"))
+                .setSaveConsumer(v -> saveInt(Config.WAKE_MIN_CALLS, v))
+                .build());
+        sleep.add(entryBuilder.startIntField(
+                        Component.translatable("config.maid_self_talk.sleep.wake_max_calls"),
+                        Config.WAKE_MAX_CALLS.get())
+                .setMin(1).setMax(20)
+                .setDefaultValue(5)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.wake_max_calls.tooltip"))
+                .setSaveConsumer(v -> saveInt(Config.WAKE_MAX_CALLS, v))
+                .build());
+        sleep.add(entryBuilder.startIntField(
+                        Component.translatable("config.maid_self_talk.sleep.wake_streak_reset"),
+                        Config.WAKE_STREAK_RESET_SECONDS.get())
+                .setMin(1).setMax(3600)
+                .setDefaultValue(120)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.wake_streak_reset.tooltip"))
+                .setSaveConsumer(v -> saveInt(Config.WAKE_STREAK_RESET_SECONDS, v))
+                .build());
+        sleep.add(entryBuilder.startIntField(
+                        Component.translatable("config.maid_self_talk.sleep.wake_stay_awake"),
+                        Config.WAKE_STAY_AWAKE_SECONDS.get())
+                .setMin(0).setMax(3600)
+                .setDefaultValue(120)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.wake_stay_awake.tooltip"))
+                .setSaveConsumer(v -> saveInt(Config.WAKE_STAY_AWAKE_SECONDS, v))
+                .build());
+        main.add(sleep.build());
+
         globalAi.addEntry(main.build());
     }
 

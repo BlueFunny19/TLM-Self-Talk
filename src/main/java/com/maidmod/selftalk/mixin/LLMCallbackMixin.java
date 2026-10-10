@@ -9,6 +9,7 @@ import com.maidmod.selftalk.KeywordPlanCallback;
 import com.maidmod.selftalk.MaidSelfTalkService;
 import com.maidmod.selftalk.SegmentTags;
 import com.maidmod.selftalk.SelfTalkCallback;
+import com.maidmod.selftalk.SleepTalkCallback;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,7 +22,8 @@ import java.net.http.HttpRequest;
  * <p>
  * 只有 TLM 内部 new 的裸 {@link LLMCallback}（玩家 chat）才参与该计数；
  * 本模组自建的子类回调各自管理状态，此处按类型排除：
- * {@link SelfTalkCallback}、{@link InterChatCallback}（自话／互聊），
+ * {@link SelfTalkCallback}、{@link InterChatCallback}（自话／互聊）、
+ * {@link SleepTalkCallback}（梦话／迷糊嘟囔），
  * 以及 {@link KeywordPlanCallback}（检索模式的静默关键词规划——它不是玩家聊天完成，
  * 若误认会让一次规划凭空解除一条在途 player chat 计数）。
  * 回调在 LLM 响应线程执行，状态写入统一调度回服务端主线程。
@@ -43,8 +45,8 @@ public abstract class LLMCallbackMixin {
 
     private static void onChatEnd(LLMCallback callback) {
         if (callback instanceof SelfTalkCallback || callback instanceof InterChatCallback
-                || callback instanceof KeywordPlanCallback) {
-            // 自话/互聊/静默规划回调自行管理各自状态与遗忘，不参与玩家 chat 计数
+                || callback instanceof SleepTalkCallback || callback instanceof KeywordPlanCallback) {
+            // 自话/互聊/睡眠（梦话与嘟囔）/静默规划回调自行管理各自状态与遗忘，不参与玩家 chat 计数
             return;
         }
         EntityMaid maid = callback.getMaid();

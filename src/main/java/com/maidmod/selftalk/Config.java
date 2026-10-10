@@ -99,6 +99,26 @@ public final class Config {
     /** 附近女仆查询 Tool 开关（仅启动时读取，改动需重启） */
     public static ForgeConfigSpec.BooleanValue MAID_IDENTITY_TOOL_ENABLED;
 
+    // ===== 睡眠：梦话与叫不醒 =====
+    /** 梦话（呓语）开关：女仆熟睡时是否偶尔自发说一句梦话 */
+    public static ForgeConfigSpec.BooleanValue SLEEP_TALK_ENABLED;
+    /** 梦话最小间隔（秒） */
+    public static ForgeConfigSpec.IntValue SLEEP_TALK_MIN_INTERVAL;
+    /** 梦话最大间隔（秒） */
+    public static ForgeConfigSpec.IntValue SLEEP_TALK_MAX_INTERVAL;
+    /** 梦话：半径多少格内有玩家时才说（0 = 不要求有人在场） */
+    public static ForgeConfigSpec.DoubleValue SLEEP_TALK_PLAYER_RANGE;
+    /** 叫不醒开关：玩家叫熟睡的女仆时，前几次她只迷糊嘟囔 */
+    public static ForgeConfigSpec.BooleanValue WAKE_RESISTANCE_ENABLED;
+    /** 一轮连叫中需要叫醒她的最少次数（含） */
+    public static ForgeConfigSpec.IntValue WAKE_MIN_CALLS;
+    /** 一轮连叫中需要叫醒她的最多次数（含） */
+    public static ForgeConfigSpec.IntValue WAKE_MAX_CALLS;
+    /** 连叫计数清零时长（秒）：距上次叫她超过该时长即视为新一轮 */
+    public static ForgeConfigSpec.IntValue WAKE_STREAK_RESET_SECONDS;
+    /** 被叫醒后保持清醒的时长（秒，0 = 不处理） */
+    public static ForgeConfigSpec.IntValue WAKE_STAY_AWAKE_SECONDS;
+
     public static final ForgeConfigSpec SPEC;
 
     static {
@@ -266,6 +286,50 @@ public final class Config {
                 玩家级 Tool 开关决定）。是否注册在启动时读取一次，修改后需重启服务端。
                 默认开启。""")
                 .define("toolEnabled", true);
+        builder.pop();
+
+        builder.push("sleep");
+        SLEEP_TALK_ENABLED = builder.comment("""
+                梦话（呓语）开关，默认开启。
+                女仆熟睡时会按各自随机间隔自发说一句梦话（由 LLM 按人设生成），
+                以头顶气泡与聊天栏消息显示，附近玩家可见。
+                本开关独立于玩家设置里的「睡觉时安静」：即使开启睡觉安静，梦话仍会触发。
+                每次梦话消耗一次 LLM 请求。""")
+                .define("enabled", true);
+        SLEEP_TALK_MIN_INTERVAL = builder.comment("梦话最小间隔（秒）。同一只熟睡女仆两次梦话之间的最小间隔。")
+                .defineInRange("minIntervalSeconds", 180, 30, 7200);
+        SLEEP_TALK_MAX_INTERVAL = builder.comment("""
+                梦话最大间隔（秒），实际间隔在 [最小, 最大] 内随机。
+                两者倒置时按现有间隔配置的写法自动交换，不会出现负区间。""")
+                .defineInRange("maxIntervalSeconds", 600, 30, 7200);
+        SLEEP_TALK_PLAYER_RANGE = builder.comment("""
+                梦话触发半径（格）：仅当该半径内有玩家时才说梦话（节省 Token）。
+                0 表示不要求有人在场；此时聊天栏广播半径回落到 16 格。
+                与自话的「玩家半径」同口径（半径内存在存活、非旁观玩家）。""")
+                .defineInRange("playerRange", 16.0, 0.0, 512.0);
+        WAKE_RESISTANCE_ENABLED = builder.comment("""
+                叫不醒开关，默认开启。
+                玩家对熟睡的女仆说话时，前几次她不会被叫醒，只迷迷糊糊嘟囔一句（不回答内容、不醒来），
+                被叫够随机次数后才醒来并正常回复；醒来后的第一次回复会带上刚起床的状态提示。
+                每次嘟囔消耗一次 LLM 请求；LLM 不可用时静默不回复（仍然计数）。""")
+                .define("wakeResistanceEnabled", true);
+        WAKE_MIN_CALLS = builder.comment("""
+                一轮连叫中需要叫醒她的最少次数（含）。
+                每次睡眠中的连叫开始时在 [最小, 最大] 内随机取整数 N：第 1..N-1 次只嘟囔，第 N 次醒来。
+                1 表示第一次就叫醒。""")
+                .defineInRange("wakeMinCalls", 2, 1, 20);
+        WAKE_MAX_CALLS = builder.comment("""
+                一轮连叫中需要叫醒她的最多次数（含）。
+                与最小次数倒置时自动交换，不会出现空区间。""")
+                .defineInRange("wakeMaxCalls", 5, 1, 20);
+        WAKE_STREAK_RESET_SECONDS = builder.comment("""
+                连叫计数清零时长（秒）：距上一次叫她超过该时长，连叫计数清零，
+                下一次叫她视为新一轮并重新随机 N。""")
+                .defineInRange("streakResetSeconds", 120, 1, 3600);
+        WAKE_STAY_AWAKE_SECONDS = builder.comment("""
+                被叫醒后保持清醒的时长（秒）：这段时间内她若又进入睡眠会被再次叫醒，
+                避免夜间日程下刚被叫醒就立刻睡回去。0 表示不做处理。""")
+                .defineInRange("stayAwakeSeconds", 120, 0, 3600);
         builder.pop();
 
         SPEC = builder.build();

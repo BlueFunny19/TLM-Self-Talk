@@ -35,15 +35,34 @@ public final class MaidInterChatService {
         return triggerInternal(responder, initiator, peerText, true, broadcastRange, chainRound, chain);
     }
 
-    private static boolean triggerInternal(EntityMaid maid, EntityMaid peer, String peerText, boolean isResponder,
-                                           double broadcastRange, int chainRound, InterChatChain chain) {
+    /**
+     * 互聊的 AI 前置是否满足：有 AI 会话管理、LLM 总开关开启、站点可用、女仆有人设。
+     * <p>
+     * 与 {@link #triggerInternal} 开头的判定是同一份逻辑；对外 API
+     * {@code com.maidmod.selftalk.api.SelfTalkApi#relayToMaid} 在建链前据此预检，
+     * 避免「链已建好才发现调用方不可用」时留下悬挂条目。仅做只读判断，不产生副作用。
+     * <p>
+     * 必须在服务端主线程调用。
+     */
+    public static boolean canTriggerInterChat(EntityMaid maid) {
+        if (maid == null) {
+            return false;
+        }
         MaidAIChatManager chatManager = maid.getAiChatManager();
         if (chatManager == null) return false;
         if (!AIConfig.LLM_ENABLED.get()) return false;
         LLMSite site = chatManager.getLLMSite();
         if (site == null || !site.enabled()) return false;
         if (chatManager.customSetting.isBlank() && chatManager.getSetting().isEmpty()) return false;
+        return true;
+    }
+
+    private static boolean triggerInternal(EntityMaid maid, EntityMaid peer, String peerText, boolean isResponder,
+                                           double broadcastRange, int chainRound, InterChatChain chain) {
+        if (!canTriggerInterChat(maid)) return false;
         if (chain == null) return false;
+        MaidAIChatManager chatManager = maid.getAiChatManager();
+        LLMSite site = chatManager.getLLMSite();
         String language = SelfTalkContexts.sanitizeLanguage(StringUtils.isBlank(chatManager.chatLanguage) ? Config.SELF_TALK_LANGUAGE.get() : chatManager.chatLanguage);
         List<LLMMessage> messages = SelfTalkContexts.fetchCleanedMessages(chatManager, language, "inter-chat");
         if (messages == null) return false;

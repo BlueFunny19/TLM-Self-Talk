@@ -71,6 +71,9 @@ public final class SelfTalkHandler {
     /** pending 超时阈值（tick）：5 分钟，回调永不返回时强制复位防卡死 */
     private static final long PENDING_TIMEOUT_TICKS = 5 * 60 * 20;
 
+    /** 「刚被叫醒」期间防复睡的复查间隔（tick）：0.5 秒，不必每 tick 复查 */
+    private static final int STAY_AWAKE_CHECK_INTERVAL_TICKS = 10;
+
     /** 状态周期清扫间隔（tick）：5 分钟（兜底清理卸载女仆的残留状态） */
     private static final long CLEANUP_INTERVAL_TICKS = 5 * 60 * 20;
     /** 上次状态清扫的服务器 tick */
@@ -141,6 +144,27 @@ public final class SelfTalkHandler {
             state.playerChatCount = 0;
             state.playerChatSinceTick = -1;
         }
+        if (state.sleepTalkPending && state.sleepTalkPendingSinceTick >= 0
+                && serverTick - state.sleepTalkPendingSinceTick > PENDING_TIMEOUT_TICKS) {
+            MaidSelfTalkMod.LOGGER.warn("Sleep-talk pending timed out for maid {}, force reset", maid.getId());
+            state.sleepTalkPending = false;
+            state.sleepTalkPendingSinceTick = -1;
+        }
+        // 被叫醒后的「别马上又睡回去」：WAKE_STAY_AWAKE_SECONDS 内若她又进入睡眠（夜间日程下
+        // TLM 的 MaidBedTask 会重新让她入睡），隔几 tick 再叫醒她。不改日程，也不动玩家的作息设置。
+        // 放在 AI 前置之前：即使 LLM 被关闭／站点不可用，这个窗口也应照常生效。
+        if (state.stayAwakeUntilTick != 0 && serverTick < state.stayAwakeUntilTick) {
+            if (serverTick >= state.nextStayAwakeCheckTick) {
+                state.nextStayAwakeCheckTick = serverTick + STAY_AWAKE_CHECK_INTERVAL_TICKS;
+                if (maid.isSleeping()) {
+                    maid.stopSleeping();
+                }
+            }
+        } else if (state.stayAwakeUntilTick != 0) {
+            // 窗口结束：撤掉标记，恢复 TLM 自己的作息
+            state.stayAwakeUntilTick = 0;
+            state.nextStayAwakeCheckTick = 0;
+        }
         // AI 前置门槛
         MaidAIChatManager chatManager = maid.getAiChatManager();
         if (chatManager == null) {
@@ -162,13 +186,20 @@ public final class SelfTalkHandler {
         if (ownerUuid == null) {
             return;
         }
+        // ===== 梦话（呓语）=====
+        // 与下方的「睡觉时安静」互不影响：梦话由 SLEEP_TALK_ENABLED 独立控制，不受安静 gate 约束
+        // （即使开启睡觉安静，熟睡的女仆仍可能说梦话）；但仍需 Config.ENABLED、AI 前置与「有主人」判定通过。
+        if (maid.isSleeping()) {
+            tickSleepTalk(maid, state, serverTick);
+        }
         // 睡眠 gate(置顶,先于一切槽位获取):女仆睡觉且玩家开启「睡觉时安静」→ 本 tick 不触发
         // 自话/互聊/欢迎;醒来后自然重试(欢迎语窗口期内醒来自动补,过期则错过,与现有窗口语义一致)
         if (maid.isSleeping() && PlayerSettingsStore.isSleepQuietForMaid(level.getServer(), maid)) {
             return;
         }
 
-        boolean busy = state.selfTalkPending || state.interChatPending || state.playerChatCount > 0;
+        boolean busy = state.selfTalkPending || state.interChatPending || state.sleepTalkPending
+                || state.playerChatCount > 0;
 
         // 欢迎检查（优先于自话，一次性、需空闲；忙时窗口期内每 tick 自然重试）
         if (!busy && Config.WELCOME_ENABLED.get() && !state.welcomedPlayers.contains(ownerUuid)) {
@@ -550,7 +581,7 @@ public final class SelfTalkHandler {
         long nowTick = level.getServer().getTickCount();
         for (EntityMaid m : candidates) {
             SelfTalkState.State s = SelfTalkState.get(m.getId());
-            if (s.selfTalkPending || s.interChatPending || s.playerChatCount > 0) {
+            if (s.selfTalkPending || s.interChatPending || s.sleepTalkPending || s.playerChatCount > 0) {
                 continue;
             }
             // 互聊对锁：该女仆正与他人连续互聊中，不能被发起互聊
@@ -655,6 +686,46 @@ public final class SelfTalkHandler {
     /** 触发成功后设置互聊冷却：与自话冷却独立 */
     private static void applyInterChatCooldown(SelfTalkState.State state, long serverTick, int minSeconds, int maxSeconds) {
         state.nextInterChatTriggerTick = serverTick + Config.randomIntervalTicks(minSeconds, maxSeconds);
+    }
+
+    /**
+     * 梦话触发检查（女仆熟睡时每 tick 调用一次）。
+     * <p>
+     * 条件：{@code sleep.enabled} 开启 + 到了她自己的随机间隔（区间在配置内随机、各自独立）+
+     * （{@code sleep.playerRange > 0} 时）半径内有玩家；随后与自话共用 5~8 秒全局闸门放行，
+     * 并由 {@link MaidSleepTalkService} 构建请求。与「睡觉时安静」无关：安静只拦自话/互聊/欢迎。
+     * <p>
+     * 忙（自话/互聊/梦话在途或玩家 chat 未结束）时短退避；闸门未放行时随机退避 8~15 秒；
+     * 实际发起与否都施加一次自己的随机间隔冷却，避免清洗失败／派发失败时每 tick 重试形成风暴。
+     */
+    private static void tickSleepTalk(EntityMaid maid, SelfTalkState.State state, long serverTick) {
+        if (!Config.SLEEP_TALK_ENABLED.get()) {
+            return;
+        }
+        if (serverTick < state.nextSleepTalkTick) {
+            return;
+        }
+        double range = Config.SLEEP_TALK_PLAYER_RANGE.get();
+        if (range > 0 && !hasPlayerNearby(maid, range)) {
+            // 没人旁观就不说：短退避后再扫（避免整夜每 tick 空扫 AABB），也不消耗随机间隔额度
+            state.nextSleepTalkTick = serverTick + RESPONDER_RETRY_TICKS;
+            return;
+        }
+        // 同一只女仆同时只有一个在途 Self Talk 请求：忙时短退避，绝不并发
+        if (state.selfTalkPending || state.interChatPending || state.sleepTalkPending
+                || state.playerChatCount > 0) {
+            state.nextSleepTalkTick = serverTick + RESPONDER_RETRY_TICKS;
+            return;
+        }
+        if (!tryAcquireSelfTalkSlot(serverTick)) {
+            // 共享闸门未放行：随机退避 8~15 秒再试，不发请求（与自话同语义）
+            state.nextSleepTalkTick = serverTick + BACKOFF_MIN_TICKS
+                    + (int) (Math.random() * (BACKOFF_MAX_TICKS - BACKOFF_MIN_TICKS + 1));
+            return;
+        }
+        MaidSleepTalkService.triggerDreamTalk(maid, MaidSleepTalkService.sleepTalkBroadcastRange());
+        state.nextSleepTalkTick = serverTick + Config.randomIntervalTicks(
+                Config.SLEEP_TALK_MIN_INTERVAL.get(), Config.SLEEP_TALK_MAX_INTERVAL.get());
     }
 
     /**
