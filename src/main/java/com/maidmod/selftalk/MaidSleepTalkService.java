@@ -45,6 +45,14 @@ public final class MaidSleepTalkService {
     /** 梦话／嘟囔回复的最大字符数：只取一小句，避免长段独白 */
     private static final int MAX_SPEECH_CHARS = 40;
 
+    /**
+     * 其它 Mod（TLM-Sincerely）约定的"停顿"标记写法：{@code <等待>}、{@code <wait 2s>} 等。
+     * 这里只为把它从梦话 / 梦的文字里剥掉，不做任何停顿处理。
+     */
+    private static final java.util.regex.Pattern PAUSE_MARKER = java.util.regex.Pattern.compile(
+            "<\\s*(?:等待|wait)(?:\\s*[:：=]?\\s*\\d+(?:\\.\\d+)?\\s*(?:秒|s|sec|seconds)?)?\\s*/?\\s*>",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
+
     private MaidSleepTalkService() {
     }
 
@@ -381,7 +389,9 @@ public final class MaidSleepTalkService {
         if (raw == null) {
             return StringUtils.EMPTY;
         }
-        String text = raw.replace('\r', ' ').replace('\n', ' ').trim();
+        // 搭配 TLM-Sincerely 的「停顿标记」时，系统提示词会提到 <等待>；梦话 / 梦不走它的剥除钩子，这里自己剥一遍
+        String text = PAUSE_MARKER.matcher(raw).replaceAll(" ")
+                .replace('\r', ' ').replace('\n', ' ').trim().replaceAll(" {2,}", " ");
         text = trimQuotes(text);
         if (text.length() > maxChars) {
             text = text.substring(0, maxChars).trim();
