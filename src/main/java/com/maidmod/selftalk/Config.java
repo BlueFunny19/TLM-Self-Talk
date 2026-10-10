@@ -124,6 +124,8 @@ public final class Config {
     public static ForgeConfigSpec.IntValue WAKE_STAY_AWAKE_SECONDS;
     /** 做梦开关：熟睡一会儿后由 LLM 按人设和白天的对话编出这一觉的梦 */
     public static ForgeConfigSpec.BooleanValue DREAM_ENABLED;
+    /** 每次睡着做梦的概率（百分比） */
+    public static ForgeConfigSpec.IntValue DREAM_CHANCE_PERCENT;
     /** 梦话是否取材于这一觉的梦 */
     public static ForgeConfigSpec.BooleanValue DREAM_TALK_REFERENCES;
     /** 醒来后是否把梦讲给主人 */
@@ -355,14 +357,21 @@ public final class Config {
                 .defineInRange("stayAwakeSeconds", 120, 0, 3600);
         DREAM_ENABLED = builder.comment("""
                 做梦开关，默认开启。
-                女仆熟睡约 30 秒后，会由 LLM 按人设、结合她和玩家之间已有的对话，编出这一觉做的梦
+                女仆睡着时按下面的概率抽一次：这一觉有没有梦（不是每个晚上都有梦）。
+                有梦的话，熟睡约 30 秒后会由 LLM 按人设、结合她和玩家之间已有的对话，编出这一觉做的梦
                 （梦只存在内存里，不显示，服务器重启后清零）。每一觉最多一次请求；失败则这一觉没有梦。
                 梦话取材于它、醒来后讲给主人，都是下面的独立开关；关闭本项则全部不生效。
                 与梦话一样，仅当 sleep.playerRange 半径内有玩家时才生成（0 = 不要求有人在场）。""")
                 .define("dreamEnabled", true);
+        DREAM_CHANCE_PERCENT = builder.comment("""
+                每次睡着做梦的概率（百分比，0~100），默认 20。
+                每只女仆每次睡着时各抽一次：抽中才有这一觉的梦，没抽中就是安稳睡一觉
+                （这一觉不生成梦、不讲梦；梦话照旧是泛泛的呓语）。0 表示永远不做梦，100 表示每觉都做梦。""")
+                .defineInRange("dreamChancePercent", 20, 0, 100);
         DREAM_TALK_REFERENCES = builder.comment("""
                 梦话取材于这一觉的梦，默认开启。
-                有梦时，梦话不再是泛泛的呓语，而是从梦里取一个片段说一句；没有梦时照旧。""")
+                有梦的夜晚里，她说的梦话都和梦有关：从梦里取一个片段说一句（梦生成出来之前先不说，
+                最多等 3 分钟）；没有梦的夜晚照旧说泛泛的呓语。""")
                 .define("dreamTalkReferencesDream", true);
         DREAM_REPORT_ENABLED = builder.comment("""
                 醒来后把梦讲给主人，默认开启。

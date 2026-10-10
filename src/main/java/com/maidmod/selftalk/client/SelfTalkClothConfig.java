@@ -325,6 +325,14 @@ public final class SelfTalkClothConfig {
                 .setTooltip(Component.translatable("config.maid_self_talk.sleep.dream_enabled.tooltip"))
                 .setSaveConsumer(v -> saveBool(Config.DREAM_ENABLED, v))
                 .build());
+        sleep.add(entryBuilder.startIntField(
+                        Component.translatable("config.maid_self_talk.sleep.dream_chance"),
+                        Config.DREAM_CHANCE_PERCENT.get())
+                .setMin(0).setMax(100)
+                .setDefaultValue(20)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.dream_chance.tooltip"))
+                .setSaveConsumer(v -> saveInt(Config.DREAM_CHANCE_PERCENT, v))
+                .build());
         sleep.add(entryBuilder.startBooleanToggle(
                         Component.translatable("config.maid_self_talk.sleep.dream_talk_references"),
                         Config.DREAM_TALK_REFERENCES.get())

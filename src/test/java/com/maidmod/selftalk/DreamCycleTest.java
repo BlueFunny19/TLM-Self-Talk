@@ -27,6 +27,7 @@ class DreamCycleTest {
     void shouldGenerate_waitsUntilShesSleptLongEnough() {
         DreamCycle cycle = new DreamCycle();
         cycle.observe(true, 100);
+        cycle.decideDream(true);
         assertFalse(cycle.shouldGenerate(100));
         assertFalse(cycle.shouldGenerate(100 + DreamCycle.SETTLE_TICKS - 1));
         assertTrue(cycle.shouldGenerate(100 + DreamCycle.SETTLE_TICKS));
@@ -36,6 +37,7 @@ class DreamCycleTest {
     void shouldGenerate_onlyOncePerSleep() {
         DreamCycle cycle = new DreamCycle();
         cycle.observe(true, 0);
+        cycle.decideDream(true);
         assertTrue(cycle.shouldGenerate(DreamCycle.SETTLE_TICKS));
         cycle.markRequested();
         assertFalse(cycle.shouldGenerate(DreamCycle.SETTLE_TICKS + 1));
@@ -47,8 +49,77 @@ class DreamCycleTest {
         DreamCycle cycle = new DreamCycle();
         assertFalse(cycle.shouldGenerate(1_000_000));
         cycle.observe(true, 0);
+        cycle.decideDream(true);
         cycle.observe(false, 10);
         assertFalse(cycle.shouldGenerate(1_000_000));
+    }
+
+    @Test
+    void rollsDream_followsTheConfiguredPercentage() {
+        assertFalse(DreamCycle.rollsDream(0, 0.0), "0% 永远不做梦");
+        assertFalse(DreamCycle.rollsDream(0, 0.5));
+        assertTrue(DreamCycle.rollsDream(100, 0.999999), "100% 永远做梦");
+        assertTrue(DreamCycle.rollsDream(20, 0.19));
+        assertFalse(DreamCycle.rollsDream(20, 0.20));
+        assertFalse(DreamCycle.rollsDream(20, 0.99));
+    }
+
+    @Test
+    void aSleepWithoutTheDreamRollNeverGeneratesOrWaits() {
+        DreamCycle cycle = new DreamCycle();
+        cycle.observe(true, 0);
+        cycle.decideDream(false);
+        assertFalse(cycle.willDream());
+        assertFalse(cycle.shouldGenerate(DreamCycle.SETTLE_TICKS * 10));
+        assertFalse(cycle.awaitingDream(1), "没有梦的夜晚，梦话不必等梦");
+    }
+
+    @Test
+    void decideDream_isIgnoredWhileAwakeAndResetOnEachSleep() {
+        DreamCycle cycle = new DreamCycle();
+        cycle.decideDream(true);
+        assertFalse(cycle.willDream(), "醒着时抽签无效");
+        cycle.observe(true, 0);
+        cycle.decideDream(true);
+        assertTrue(cycle.willDream());
+        cycle.observe(false, 10);
+        cycle.observe(true, 20);
+        assertFalse(cycle.willDream(), "新的一觉要重新抽");
+    }
+
+    @Test
+    void awaitingDream_holdsSleepTalkUntilTheDreamArrivesFailsOrTimesOut() {
+        DreamCycle cycle = new DreamCycle();
+        cycle.observe(true, 0);
+        cycle.decideDream(true);
+        assertTrue(cycle.awaitingDream(10), "有梦的夜晚、梦还没来：梦话要等");
+        assertTrue(cycle.awaitingDream(DreamCycle.AWAIT_LIMIT_TICKS - 1));
+        assertFalse(cycle.awaitingDream(DreamCycle.AWAIT_LIMIT_TICKS), "等太久就不等了");
+
+        DreamCycle arrived = new DreamCycle();
+        arrived.observe(true, 0);
+        arrived.decideDream(true);
+        arrived.setDream(arrived.sleepId(), "梦");
+        assertFalse(arrived.awaitingDream(10), "梦到了就不用等");
+
+        DreamCycle failed = new DreamCycle();
+        failed.observe(true, 0);
+        failed.decideDream(true);
+        failed.markFailed(failed.sleepId());
+        assertFalse(failed.awaitingDream(10), "梦生成失败就不等了");
+        assertFalse(failed.shouldGenerate(DreamCycle.SETTLE_TICKS), "失败了也不重试");
+    }
+
+    @Test
+    void markFailed_ignoresAStaleSleepId() {
+        DreamCycle cycle = new DreamCycle();
+        cycle.observe(true, 0);
+        int old = cycle.sleepId();
+        cycle.observe(false, 10);
+        cycle.observe(true, 20);
+        cycle.decideDream(true);
+        cycle.markFailed(old);
+        assertTrue(cycle.awaitingDream(30));
     }
 
     @Test
@@ -90,6 +161,7 @@ class DreamCycleTest {
         cycle.setDream(cycle.sleepId(), "旧的梦");
         cycle.observe(false, 100);
         cycle.observe(true, 200);
+        cycle.decideDream(true);
         assertNull(cycle.dream());
         assertTrue(cycle.shouldGenerate(200 + DreamCycle.SETTLE_TICKS));
     }

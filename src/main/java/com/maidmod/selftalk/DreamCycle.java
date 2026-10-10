@@ -5,7 +5,8 @@ package com.maidmod.selftalk;
  * <p>
  * 一觉从她睡着开始、到醒来结束，期间的流程是：
  * <ol>
- *   <li>睡着 {@link #SETTLE_TICKS} 之后生成这一觉的梦（{@link #shouldGenerate}），生成请求发出后不再重复发
+ *   <li>睡着时按概率抽一次，这一觉有没有梦（{@link #rollsDream}、{@link #decideDream}）——不是每个晚上都有梦；</li>
+ *   <li>有梦的话，睡着 {@link #SETTLE_TICKS} 之后生成这一觉的梦（{@link #shouldGenerate}），生成请求发出后不再重复发
  *       （{@link #markRequested}），失败了就这一觉没有梦——不重试，免得失败时每个 tick 都在请求；</li>
  *   <li>梦生成好之后保存下来（{@link #setDream}），梦话可以引用它（{@link #dream}）；</li>
  *   <li>醒来后的一段窗口内，若她是自然醒来，且梦还没说过，就把梦讲给主人（{@link #shouldReport}、
@@ -20,6 +21,8 @@ package com.maidmod.selftalk;
 public final class DreamCycle {
     /** 睡着多久之后才生成梦（tick）：小憩几秒钟就醒的不必为它请求一次模型。 */
     public static final long SETTLE_TICKS = 30 * 20L;
+    /** 有梦的夜晚里，梦话最多等梦多久（tick）：3 分钟。 */
+    public static final long AWAIT_LIMIT_TICKS = 3 * 60 * 20L;
 
     /** {@link #observe} 看到的睡眠状态变化。 */
     public enum Transition {
@@ -35,6 +38,10 @@ public final class DreamCycle {
     private long fellAsleepTick = -1;
     private long wokeTick = -1;
     private boolean requested;
+    /** 这一觉是不是一个"有梦的夜晚"：睡着时按概率抽一次（不是每次睡觉都会做梦）。 */
+    private boolean willDream;
+    /** 这一觉的梦生成失败了（请求出错、回复为空、前置条件不满足）：不会再有梦。 */
+    private boolean failed;
     private boolean reported;
     private String dream;
 
@@ -53,6 +60,8 @@ public final class DreamCycle {
             fellAsleepTick = nowTick;
             wokeTick = -1;
             requested = false;
+            willDream = false;
+            failed = false;
             reported = false;
             dream = null;
             return Transition.FELL_ASLEEP;
@@ -72,9 +81,45 @@ public final class DreamCycle {
 
     // ===== 生成 =====
 
-    /** 现在该不该发出生成梦的请求：睡着、睡够 {@link #SETTLE_TICKS}、这一觉还没请求过。 */
+    /**
+     * 按概率抽这一觉做不做梦：{@code chancePercent} 为 0~100 的整数，{@code roll01} 是 [0,1) 的随机数
+     * （显式传入，便于单测）。{@code roll01 * 100 < chancePercent} 才做梦，所以 0 永远不做、100 永远做。
+     */
+    public static boolean rollsDream(int chancePercent, double roll01) {
+        return roll01 * 100.0D < chancePercent;
+    }
+
+    /** 睡着之后抽签的结果：这一觉有没有梦（每一觉只抽一次，由调用方在 {@link Transition#FELL_ASLEEP} 时调用）。 */
+    public void decideDream(boolean dreams) {
+        if (sleeping) {
+            willDream = dreams;
+        }
+    }
+
+    /** 这一觉是不是一个"有梦的夜晚"。 */
+    public boolean willDream() {
+        return willDream;
+    }
+
+    /**
+     * 这一觉注定有梦、可梦还没生成出来（也没失败）：梦话要等梦——有梦的夜晚里她说的梦话都该和梦有关，
+     * 不能在梦生成之前先说一句泛泛的呓语。等太久（{@link #AWAIT_LIMIT_TICKS}）就不等了，免得请求悬着时她整夜不说话。
+     */
+    public boolean awaitingDream(long nowTick) {
+        return sleeping && willDream && dream == null && !failed
+                && fellAsleepTick >= 0 && nowTick - fellAsleepTick < AWAIT_LIMIT_TICKS;
+    }
+
+    /** 这一觉的梦生成失败了。 */
+    public void markFailed(int forSleepId) {
+        if (forSleepId == sleepId) {
+            failed = true;
+        }
+    }
+
+    /** 现在该不该发出生成梦的请求：睡着、这一觉有梦、睡够 {@link #SETTLE_TICKS}、还没请求过。 */
     public boolean shouldGenerate(long nowTick) {
-        return sleeping && !requested && dream == null
+        return sleeping && willDream && !requested && !failed && dream == null
                 && fellAsleepTick >= 0 && nowTick - fellAsleepTick >= SETTLE_TICKS;
     }
 
@@ -136,6 +181,8 @@ public final class DreamCycle {
         fellAsleepTick = -1;
         wokeTick = -1;
         requested = false;
+        willDream = false;
+        failed = false;
         reported = false;
         dream = null;
         sleepId++;

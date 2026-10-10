@@ -156,6 +156,14 @@ public final class MaidSleepTalkService {
                 broadcastRange, SleepTalkCallback.Kind.DREAM_REPORT, 0));
     }
 
+    /** 梦没能生成出来（请求失败 / 回复为空；服务端主线程）：这一觉没有梦，梦话不再等它。 */
+    static void onDreamFailed(EntityMaid maid, int sleepId) {
+        SelfTalkState.State state = SelfTalkState.peek(maid.getId());
+        if (state != null) {
+            state.dreamCycle.markFailed(sleepId);
+        }
+    }
+
     /** 梦生成好了（服务端主线程，由 {@link SleepTalkCallback} 调用）：交给这只女仆这一觉的状态保存。 */
     static void onDreamGenerated(EntityMaid maid, int sleepId, String dream) {
         SelfTalkState.State state = SelfTalkState.peek(maid.getId());

@@ -154,7 +154,11 @@ public final class SelfTalkHandler {
             state.sleepTalkPendingSinceTick = -1;
         }
         // 一觉的开始与结束（做梦的生命周期用）：放在 AI 前置之前，LLM 临时不可用时也不会漏掉睡着 / 醒来
-        state.dreamCycle.observe(maid.isSleeping(), serverTick);
+        if (state.dreamCycle.observe(maid.isSleeping(), serverTick) == DreamCycle.Transition.FELL_ASLEEP) {
+            // 不是每个晚上都有梦：每次睡着按玩家配置的概率抽一次
+            state.dreamCycle.decideDream(Config.DREAM_ENABLED.get()
+                    && DreamCycle.rollsDream(Config.DREAM_CHANCE_PERCENT.get(), Math.random()));
+        }
         // 被叫醒后的「别马上又睡回去」：WAKE_STAY_AWAKE_SECONDS 窗口内由 MaidBedTaskMixin 不让 TLM 的
         // MaidBedTask 开始（她不会走向床、也不会上床）。这里只是兜底：如果混入没有生效，或她被别的途径弄睡着，
         // 隔几 tick 再叫醒她。不改日程，也不动玩家的作息设置。
@@ -715,6 +719,12 @@ public final class SelfTalkHandler {
         if (serverTick < state.nextSleepTalkTick) {
             return;
         }
+        // 有梦的夜晚：梦话要和梦有关，所以梦还没生成出来时先不说（没有梦的夜晚照旧说泛泛的呓语）
+        if (Config.DREAM_ENABLED.get() && Config.DREAM_TALK_REFERENCES.get()
+                && state.dreamCycle.awaitingDream(serverTick)) {
+            state.nextSleepTalkTick = serverTick + RESPONDER_RETRY_TICKS;
+            return;
+        }
         double range = Config.SLEEP_TALK_PLAYER_RANGE.get();
         if (range > 0 && !hasPlayerNearby(maid, range)) {
             // 没人旁观就不说：短退避后再扫（避免整夜每 tick 空扫 AABB），也不消耗随机间隔额度
@@ -765,7 +775,10 @@ public final class SelfTalkHandler {
             return;
         }
         state.dreamCycle.markRequested();
-        MaidSleepTalkService.triggerDreamGeneration(maid, state.dreamCycle.sleepId());
+        if (!MaidSleepTalkService.triggerDreamGeneration(maid, state.dreamCycle.sleepId())) {
+            // 没能发出请求（前置条件不满足、消息前缀拼装失败）：这一觉没有梦，梦话也不用再等
+            state.dreamCycle.markFailed(state.dreamCycle.sleepId());
+        }
     }
 
     /**

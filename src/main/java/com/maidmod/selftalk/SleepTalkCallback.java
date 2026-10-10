@@ -92,6 +92,9 @@ public class SleepTalkCallback extends LLMCallback {
             }
             clearPending(maid);
             if (!maid.isAlive() || text.isBlank()) {
+                if (kind == Kind.DREAM_GENERATE && maid.isAlive()) {
+                    MaidSleepTalkService.onDreamFailed(maid, sleepId);
+                }
                 return;
             }
             if (kind == Kind.DREAM_GENERATE) {
@@ -131,7 +134,12 @@ public class SleepTalkCallback extends LLMCallback {
         if (maid == null) {
             return;
         }
-        Runnable finish = () -> clearPending(maid);
+        Runnable finish = () -> {
+            clearPending(maid);
+            if (kind == Kind.DREAM_GENERATE) {
+                MaidSleepTalkService.onDreamFailed(maid, sleepId);
+            }
+        };
         if (isOnServerThread()) {
             finish.run();
         } else {
