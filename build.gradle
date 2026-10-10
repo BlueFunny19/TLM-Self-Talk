@@ -60,10 +60,15 @@ dependencies {
     implementation fg.deobf('maven.modrinth:touhou-little-maid:1.5.3-forge+mc1.20.1')
     compileOnly fg.deobf('maven.modrinth:cloth-config:11.1.136+forge')
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
 }
 
 // 防 refmap 偶发丢失（TLM 同款）
