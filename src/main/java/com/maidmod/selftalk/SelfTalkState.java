@@ -166,5 +166,9 @@ public final class SelfTalkState {
         public long stayAwakeUntilTick = 0;
         /** 下次复查「刚被叫醒期间又睡着」的服务器 tick（不必每 tick 复查） */
         public long nextStayAwakeCheckTick = 0;
+        /** 这一觉里与梦有关的状态（生成 → 梦话引用 → 醒来后讲给主人）；只在内存里 */
+        public final DreamCycle dreamCycle = new DreamCycle();
+        /** 下次再检查「该不该生成这一觉的梦」的服务器 tick（没人旁观、忙、闸门未放行时的退避，不必每 tick 复查） */
+        public long nextDreamCheckTick = 0;
     }
 }

@@ -89,9 +89,71 @@ public final class MaidSleepTalkService {
         if (messages == null) {
             return false;
         }
-        String prompt = applyLanguage(SleepTalkPrompts.dreamTalk(SelfTalkContexts.isChinese(language)), language);
+        boolean zh = SelfTalkContexts.isChinese(language);
+        // 这一觉做了梦、且开了「梦话取材于梦」：说梦里的一个片段；否则照旧说泛泛的呓语
+        String dream = Config.DREAM_ENABLED.get() && Config.DREAM_TALK_REFERENCES.get()
+                ? SelfTalkState.get(maid.getId()).dreamCycle.dream() : null;
+        String base = dream == null ? SleepTalkPrompts.dreamTalk(zh) : SleepTalkPrompts.dreamTalkAboutDream(zh, dream);
+        messages.add(LLMMessage.userChat(maid, applyLanguage(base, language)));
+        return dispatch(maid, chatManager, messages,
+                new SleepTalkCallback(chatManager, messages, broadcastRange));
+    }
+
+    // ===== 做梦：生成、醒来后讲给主人 =====
+
+    /**
+     * 请模型编出这一觉的梦：人设 system 消息 + 她和玩家之间已有的对话历史（消息前缀里本来就有）
+     * + {@link SleepTalkPrompts#dreamGenerate} 指令。回复只存进 {@link DreamCycle}，不显示给任何人，
+     * 也不写入 TLM 历史。
+     *
+     * @param sleepId 发出请求时的 {@link DreamCycle#sleepId}，回复回来时据此丢弃已经过期的结果
+     * @return 是否实际发起请求
+     */
+    public static boolean triggerDreamGeneration(EntityMaid maid, int sleepId) {
+        if (!canTriggerSleepTalk(maid)) {
+            return false;
+        }
+        MaidAIChatManager chatManager = maid.getAiChatManager();
+        String language = resolveLanguage(chatManager);
+        List<LLMMessage> messages = SelfTalkContexts.fetchCleanedMessages(chatManager, language, "dream");
+        if (messages == null) {
+            return false;
+        }
+        String prompt = applyLanguage(SleepTalkPrompts.dreamGenerate(SelfTalkContexts.isChinese(language)), language);
         messages.add(LLMMessage.userChat(maid, prompt));
-        return dispatch(maid, chatManager, messages, broadcastRange);
+        return dispatch(maid, chatManager, messages, new SleepTalkCallback(chatManager, messages,
+                0.0D, SleepTalkCallback.Kind.DREAM_GENERATE, sleepId));
+    }
+
+    /**
+     * 自然醒来后把梦讲给主人：人设 system 消息 + {@link SleepTalkPrompts#dreamReport} 指令（含梦的内容）。
+     * 回复显示为气泡与聊天栏消息；是否写进 TLM 历史由 {@code sleep.dreamWriteHistory} 决定。
+     *
+     * @return 是否实际发起请求
+     */
+    public static boolean triggerDreamReport(EntityMaid maid, String dream, double broadcastRange) {
+        if (!canTriggerSleepTalk(maid)) {
+            return false;
+        }
+        MaidAIChatManager chatManager = maid.getAiChatManager();
+        String language = resolveLanguage(chatManager);
+        List<LLMMessage> messages = SelfTalkContexts.fetchCleanedMessages(chatManager, language, "dream");
+        if (messages == null) {
+            return false;
+        }
+        String prompt = applyLanguage(SleepTalkPrompts.dreamReport(SelfTalkContexts.isChinese(language), dream),
+                language);
+        messages.add(LLMMessage.userChat(maid, prompt));
+        return dispatch(maid, chatManager, messages, new SleepTalkCallback(chatManager, messages,
+                broadcastRange, SleepTalkCallback.Kind.DREAM_REPORT, 0));
+    }
+
+    /** 梦生成好了（服务端主线程，由 {@link SleepTalkCallback} 调用）：交给这只女仆这一觉的状态保存。 */
+    static void onDreamGenerated(EntityMaid maid, int sleepId, String dream) {
+        SelfTalkState.State state = SelfTalkState.peek(maid.getId());
+        if (state != null && state.dreamCycle.setDream(sleepId, dream)) {
+            MaidSelfTalkMod.LOGGER.debug("Dream generated for maid {} ({} chars)", maid.getId(), dream.length());
+        }
     }
 
     // ===== 叫不醒：迷糊嘟囔 =====
@@ -121,7 +183,8 @@ public final class MaidSleepTalkService {
             userContent.append("\n\n").append(SegmentTags.stripTagsFromPlayerInput(playerMessage));
         }
         messages.add(LLMMessage.userChat(maid, userContent.toString()));
-        return dispatch(maid, chatManager, messages, broadcastRange);
+        return dispatch(maid, chatManager, messages,
+                new SleepTalkCallback(chatManager, messages, broadcastRange));
     }
 
     /**
@@ -131,13 +194,13 @@ public final class MaidSleepTalkService {
      * 调用方可能处于实体 tick 或 TLM 玩家聊天入口。
      */
     private static boolean dispatch(EntityMaid maid, MaidAIChatManager chatManager, List<LLMMessage> messages,
-                                    double broadcastRange) {
+                                    SleepTalkCallback callback) {
         SelfTalkState.State state = SelfTalkState.get(maid.getId());
         state.sleepTalkPending = true;
         state.sleepTalkPendingSinceTick = maid.level().getServer().getTickCount();
         try {
             LLMSite site = chatManager.getLLMSite();
-            site.client().chat(new SleepTalkCallback(chatManager, messages, broadcastRange));
+            site.client().chat(callback);
         } catch (Throwable t) {
             state.sleepTalkPending = false;
             state.sleepTalkPendingSinceTick = -1;
@@ -230,7 +293,16 @@ public final class MaidSleepTalkService {
             return null;
         }
         String language = resolveLanguage(maid.getAiChatManager());
-        return applyLanguage(SleepTalkPrompts.wakeUpNote(SelfTalkContexts.isChinese(language)), language);
+        boolean zh = SelfTalkContexts.isChinese(language);
+        String note = SleepTalkPrompts.wakeUpNote(zh);
+        // 被叫醒时她正做着梦：把梦附在起床提示后面（不另发请求），让她回答时可以顺口提一句
+        if (Config.DREAM_ENABLED.get() && Config.DREAM_REPORT_ENABLED.get()) {
+            String dream = state.dreamCycle.takeForWakeNote();
+            if (dream != null) {
+                note = note + SleepTalkPrompts.dreamWakeHint(zh, dream);
+            }
+        }
+        return applyLanguage(note, language);
     }
 
     /**
@@ -301,13 +373,18 @@ public final class MaidSleepTalkService {
      * 梦话与嘟囔都只应是一小句，超长内容按字符截断（不做词边界处理）。
      */
     static String normalizeSpeech(String raw) {
+        return normalizeText(raw, MAX_SPEECH_CHARS);
+    }
+
+    /** 同 {@link #normalizeSpeech}，字符数上限可调（讲梦、梦的内容比梦话长）。 */
+    static String normalizeText(String raw, int maxChars) {
         if (raw == null) {
             return StringUtils.EMPTY;
         }
         String text = raw.replace('\r', ' ').replace('\n', ' ').trim();
         text = trimQuotes(text);
-        if (text.length() > MAX_SPEECH_CHARS) {
-            text = text.substring(0, MAX_SPEECH_CHARS).trim();
+        if (text.length() > maxChars) {
+            text = text.substring(0, maxChars).trim();
             text = trimQuotes(text);
         }
         return text;

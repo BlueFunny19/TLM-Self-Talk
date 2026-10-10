@@ -318,6 +318,42 @@ public final class SelfTalkClothConfig {
                 .setTooltip(Component.translatable("config.maid_self_talk.sleep.wake_stay_awake.tooltip"))
                 .setSaveConsumer(v -> saveInt(Config.WAKE_STAY_AWAKE_SECONDS, v))
                 .build());
+        sleep.add(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.maid_self_talk.sleep.dream_enabled"),
+                        Config.DREAM_ENABLED.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.dream_enabled.tooltip"))
+                .setSaveConsumer(v -> saveBool(Config.DREAM_ENABLED, v))
+                .build());
+        sleep.add(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.maid_self_talk.sleep.dream_talk_references"),
+                        Config.DREAM_TALK_REFERENCES.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.dream_talk_references.tooltip"))
+                .setSaveConsumer(v -> saveBool(Config.DREAM_TALK_REFERENCES, v))
+                .build());
+        sleep.add(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.maid_self_talk.sleep.dream_report_enabled"),
+                        Config.DREAM_REPORT_ENABLED.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.dream_report_enabled.tooltip"))
+                .setSaveConsumer(v -> saveBool(Config.DREAM_REPORT_ENABLED, v))
+                .build());
+        sleep.add(entryBuilder.startIntField(
+                        Component.translatable("config.maid_self_talk.sleep.dream_report_window"),
+                        Config.DREAM_REPORT_WINDOW_SECONDS.get())
+                .setMin(30).setMax(3600)
+                .setDefaultValue(300)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.dream_report_window.tooltip"))
+                .setSaveConsumer(v -> saveInt(Config.DREAM_REPORT_WINDOW_SECONDS, v))
+                .build());
+        sleep.add(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.maid_self_talk.sleep.dream_write_history"),
+                        Config.DREAM_WRITE_HISTORY.get())
+                .setDefaultValue(false)
+                .setTooltip(Component.translatable("config.maid_self_talk.sleep.dream_write_history.tooltip"))
+                .setSaveConsumer(v -> saveBool(Config.DREAM_WRITE_HISTORY, v))
+                .build());
         main.add(sleep.build());
 
         globalAi.addEntry(main.build());

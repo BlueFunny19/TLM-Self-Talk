@@ -43,6 +43,39 @@ class SleepTalkPromptsTest {
     }
 
     @Test
+    void dreamPromptsAreNonBlankAndDifferBetweenLanguages() {
+        String dream = "我梦见自己在云上烤蛋糕";
+        assertFalse(SleepTalkPrompts.dreamGenerate(true).isBlank());
+        assertFalse(SleepTalkPrompts.dreamGenerate(false).isBlank());
+        assertNotEquals(SleepTalkPrompts.dreamGenerate(true), SleepTalkPrompts.dreamGenerate(false));
+        assertNotEquals(SleepTalkPrompts.dreamTalkAboutDream(true, dream), SleepTalkPrompts.dreamTalkAboutDream(false, dream));
+        assertNotEquals(SleepTalkPrompts.dreamReport(true, dream), SleepTalkPrompts.dreamReport(false, dream));
+        assertNotEquals(SleepTalkPrompts.dreamWakeHint(true, dream), SleepTalkPrompts.dreamWakeHint(false, dream));
+    }
+
+    @Test
+    void dreamPromptsCarryTheDreamAndStayDistinctFromTheOldOnes() {
+        String dream = "我梦见自己在云上烤蛋糕";
+        assertTrue(SleepTalkPrompts.dreamTalkAboutDream(true, dream).contains(dream));
+        assertTrue(SleepTalkPrompts.dreamReport(true, dream).contains(dream));
+        assertTrue(SleepTalkPrompts.dreamWakeHint(true, dream).contains(dream));
+        String english = "I was baking a cake on a cloud";
+        assertTrue(SleepTalkPrompts.dreamTalkAboutDream(false, english).contains(english));
+        assertTrue(SleepTalkPrompts.dreamReport(false, english).contains(english));
+        assertTrue(SleepTalkPrompts.dreamWakeHint(false, english).contains(english));
+        assertNotEquals(SleepTalkPrompts.dreamTalk(true), SleepTalkPrompts.dreamTalkAboutDream(true, dream));
+        assertNotEquals(SleepTalkPrompts.dreamTalk(false), SleepTalkPrompts.dreamTalkAboutDream(false, english));
+    }
+
+    @Test
+    void dreamPromptsAreSafeWhenTheDreamContainsFormatCharacters() {
+        // 梦是模型生成的，里面可能有 % 之类的字符：它只是参数，不能被当成格式串
+        String dream = "100% 的蛋糕 %s %d";
+        assertTrue(SleepTalkPrompts.dreamReport(true, dream).contains(dream));
+        assertTrue(SleepTalkPrompts.dreamTalkAboutDream(false, dream).contains(dream));
+    }
+
+    @Test
     void dreamTalkIntervalStaysInsideConfiguredRange() {
         int minSeconds = 180;
         int maxSeconds = 600;

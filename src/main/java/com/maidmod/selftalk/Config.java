@@ -122,6 +122,16 @@ public final class Config {
     public static ForgeConfigSpec.IntValue WAKE_STREAK_RESET_SECONDS;
     /** 被叫醒后保持清醒的时长（秒，0 = 不处理） */
     public static ForgeConfigSpec.IntValue WAKE_STAY_AWAKE_SECONDS;
+    /** 做梦开关：熟睡一会儿后由 LLM 按人设和白天的对话编出这一觉的梦 */
+    public static ForgeConfigSpec.BooleanValue DREAM_ENABLED;
+    /** 梦话是否取材于这一觉的梦 */
+    public static ForgeConfigSpec.BooleanValue DREAM_TALK_REFERENCES;
+    /** 醒来后是否把梦讲给主人 */
+    public static ForgeConfigSpec.BooleanValue DREAM_REPORT_ENABLED;
+    /** 自然醒来后多久内（秒）主人走近才会听到她讲梦 */
+    public static ForgeConfigSpec.IntValue DREAM_REPORT_WINDOW_SECONDS;
+    /** 她讲梦的那句话是否写进主模组的聊天历史 */
+    public static ForgeConfigSpec.BooleanValue DREAM_WRITE_HISTORY;
 
     public static final ForgeConfigSpec SPEC;
 
@@ -343,6 +353,31 @@ public final class Config {
                 被叫醒后保持清醒的时长（秒）：这段时间内她不会再走向床睡觉，
                 避免夜间日程下刚被叫醒就立刻睡回去。0 表示不做处理。""")
                 .defineInRange("stayAwakeSeconds", 120, 0, 3600);
+        DREAM_ENABLED = builder.comment("""
+                做梦开关，默认开启。
+                女仆熟睡约 30 秒后，会由 LLM 按人设、结合她和玩家之间已有的对话，编出这一觉做的梦
+                （梦只存在内存里，不显示，服务器重启后清零）。每一觉最多一次请求；失败则这一觉没有梦。
+                梦话取材于它、醒来后讲给主人，都是下面的独立开关；关闭本项则全部不生效。
+                与梦话一样，仅当 sleep.playerRange 半径内有玩家时才生成（0 = 不要求有人在场）。""")
+                .define("dreamEnabled", true);
+        DREAM_TALK_REFERENCES = builder.comment("""
+                梦话取材于这一觉的梦，默认开启。
+                有梦时，梦话不再是泛泛的呓语，而是从梦里取一个片段说一句；没有梦时照旧。""")
+                .define("dreamTalkReferencesDream", true);
+        DREAM_REPORT_ENABLED = builder.comment("""
+                醒来后把梦讲给主人，默认开启。
+                自己睡醒的女仆会在主人走近（16 格内）时，用一两句话说起这个梦（每个梦最多说一次，
+                多一次 LLM 请求，以头顶气泡和聊天栏显示）；被玩家叫醒的则把梦附在起床提示里，
+                让她回答时可以顺口提一句，不另外发请求。""")
+                .define("dreamReportEnabled", true);
+        DREAM_REPORT_WINDOW_SECONDS = builder.comment("""
+                自然醒来后，主人在多少秒内走近才会听到她讲梦（超过就不说了）。""")
+                .defineInRange("dreamReportWindowSeconds", 300, 30, 3600);
+        DREAM_WRITE_HISTORY = builder.comment("""
+                她讲梦的那句话是否写进主模组的聊天历史，默认关闭。
+                关闭时这句话只用于显示，不进入历史，不影响之后的对话与记忆整理；
+                开启后她会在之后的对话里「记得」自己说过这个梦。梦本身从不写入历史。""")
+                .define("dreamWriteHistory", false);
         builder.pop();
 
         SPEC = builder.build();

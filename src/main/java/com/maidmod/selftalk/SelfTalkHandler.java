@@ -67,6 +67,8 @@ public final class SelfTalkHandler {
 
     /** 互聊候选均不可用（pending/无 AI）时的短退避（tick）：避免每 tick 重复 AABB 实体扫描 */
     private static final int RESPONDER_RETRY_TICKS = 2 * 20;
+    /** 醒来后讲梦：主人在这个半径（格）内才讲 */
+    private static final double DREAM_REPORT_OWNER_RANGE = 16.0;
 
     /** pending 超时阈值（tick）：5 分钟，回调永不返回时强制复位防卡死 */
     private static final long PENDING_TIMEOUT_TICKS = 5 * 60 * 20;
@@ -151,6 +153,8 @@ public final class SelfTalkHandler {
             state.sleepTalkPending = false;
             state.sleepTalkPendingSinceTick = -1;
         }
+        // 一觉的开始与结束（做梦的生命周期用）：放在 AI 前置之前，LLM 临时不可用时也不会漏掉睡着 / 醒来
+        state.dreamCycle.observe(maid.isSleeping(), serverTick);
         // 被叫醒后的「别马上又睡回去」：WAKE_STAY_AWAKE_SECONDS 窗口内由 MaidBedTaskMixin 不让 TLM 的
         // MaidBedTask 开始（她不会走向床、也不会上床）。这里只是兜底：如果混入没有生效，或她被别的途径弄睡着，
         // 隔几 tick 再叫醒她。不改日程，也不动玩家的作息设置。
@@ -192,7 +196,11 @@ public final class SelfTalkHandler {
         // 与下方的「睡觉时安静」互不影响：梦话由 SLEEP_TALK_ENABLED 独立控制，不受安静 gate 约束
         // （即使开启睡觉安静，熟睡的女仆仍可能说梦话）；但仍需 Config.ENABLED、AI 前置与「有主人」判定通过。
         if (maid.isSleeping()) {
+            // 先做梦（睡够一会儿后生成这一觉的梦），梦话才能取材于它
+            tickDream(maid, state, serverTick);
             tickSleepTalk(maid, state, serverTick);
+        } else {
+            tickDreamReport(maid, state, serverTick, level);
         }
         // 睡眠 gate(置顶,先于一切槽位获取):女仆睡觉且玩家开启「睡觉时安静」→ 本 tick 不触发
         // 自话/互聊/欢迎;醒来后自然重试(欢迎语窗口期内醒来自动补,过期则错过,与现有窗口语义一致)
@@ -728,6 +736,66 @@ public final class SelfTalkHandler {
         MaidSleepTalkService.triggerDreamTalk(maid, MaidSleepTalkService.sleepTalkBroadcastRange());
         state.nextSleepTalkTick = serverTick + Config.randomIntervalTicks(
                 Config.SLEEP_TALK_MIN_INTERVAL.get(), Config.SLEEP_TALK_MAX_INTERVAL.get());
+    }
+
+    /**
+     * 做梦：女仆睡够 {@link DreamCycle#SETTLE_TICKS} 之后，请模型编出这一觉的梦（每一觉最多一次请求）。
+     * <p>
+     * 门槛与梦话一致：{@code sleep.playerRange > 0} 时半径内要有玩家（没人旁观就不花这个请求），
+     * 忙时短退避，共用 5~8 秒全局闸门。请求发出后无论成败都不再重试（失败的一觉就没有梦）。
+     */
+    private static void tickDream(EntityMaid maid, SelfTalkState.State state, long serverTick) {
+        if (!Config.DREAM_ENABLED.get() || serverTick < state.nextDreamCheckTick
+                || !state.dreamCycle.shouldGenerate(serverTick)) {
+            return;
+        }
+        double range = Config.SLEEP_TALK_PLAYER_RANGE.get();
+        if (range > 0 && !hasPlayerNearby(maid, range)) {
+            state.nextDreamCheckTick = serverTick + RESPONDER_RETRY_TICKS;
+            return;
+        }
+        if (state.selfTalkPending || state.interChatPending || state.sleepTalkPending
+                || state.playerChatCount > 0) {
+            state.nextDreamCheckTick = serverTick + RESPONDER_RETRY_TICKS;
+            return;
+        }
+        if (!tryAcquireSelfTalkSlot(serverTick)) {
+            state.nextDreamCheckTick = serverTick + BACKOFF_MIN_TICKS
+                    + (int) (Math.random() * (BACKOFF_MAX_TICKS - BACKOFF_MIN_TICKS + 1));
+            return;
+        }
+        state.dreamCycle.markRequested();
+        MaidSleepTalkService.triggerDreamGeneration(maid, state.dreamCycle.sleepId());
+    }
+
+    /**
+     * 自然醒来后把梦讲给主人：有梦、没讲过、还在窗口内，并且主人在 {@link #DREAM_REPORT_OWNER_RANGE} 格内时
+     * 讲一次（每个梦最多一次，多一次请求）。被玩家叫醒的梦已经在起床提示里用掉了，这里不会再讲。
+     * <p>
+     * 这句话属于自言自语的一种：玩家把这只女仆的自话关掉时（玩家独立设置）不讲；忙时等下一个 tick。
+     */
+    private static void tickDreamReport(EntityMaid maid, SelfTalkState.State state, long serverTick,
+                                        ServerLevel level) {
+        if (!Config.DREAM_ENABLED.get() || !Config.DREAM_REPORT_ENABLED.get()
+                || !state.dreamCycle.shouldReport(serverTick, Config.DREAM_REPORT_WINDOW_SECONDS.get() * 20L)) {
+            return;
+        }
+        var owner = maid.getOwner();
+        if (owner == null || maid.distanceToSqr(owner) > DREAM_REPORT_OWNER_RANGE * DREAM_REPORT_OWNER_RANGE) {
+            return;
+        }
+        if (Config.PLAYER_OPTION_ENABLED.get()
+                && !PlayerSettingsStore.isSelfTalkEnabledForMaid(level.getServer(), maid)) {
+            state.dreamCycle.markReported();
+            return;
+        }
+        if (state.selfTalkPending || state.interChatPending || state.sleepTalkPending
+                || state.playerChatCount > 0 || !tryAcquireSelfTalkSlot(serverTick)) {
+            return;
+        }
+        String dream = state.dreamCycle.dream();
+        state.dreamCycle.markReported();
+        MaidSleepTalkService.triggerDreamReport(maid, dream, MaidSleepTalkService.sleepTalkBroadcastRange());
     }
 
     /**

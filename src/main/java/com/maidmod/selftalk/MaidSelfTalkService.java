@@ -300,6 +300,9 @@ public final class MaidSelfTalkService {
         state.windowSelfTalkMsgs.clear();
         state.windowInterChatMsgs.clear();
         state.currentSelfTalkCallback = null;
+        // 梦是由旧历史编出来的：一并作废（在途的生成请求按编号被丢弃）
+        state.dreamCycle.reset();
+        state.nextDreamCheckTick = 0;
         // 互聊：走主人插话同一套收尾（禁言 + 中断链 + 丢弃顺延），另一侧不会再把消息投递进来
         InterChatChain chain = InterChatChain.activeFor(maid);
         if (chain != null) {
