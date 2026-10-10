@@ -162,7 +162,7 @@ public final class SelfTalkState {
         public final WakeResistance.Calls wakeCalls = new WakeResistance.Calls();
         /** 最近一次被叫醒的服务器 tick（-1 = 无）：醒来后第一次正常回复据此附提示，用后立即清除 */
         public long justWokenTick = -1;
-        /** 被叫醒后保持清醒的截止 tick（0 = 不处理）；期间若又睡着会被再次叫醒 */
+        /** 被叫醒后保持清醒的截止 tick（0 = 不处理）；期间不让她回床睡觉（见 MaidBedTaskMixin），若仍睡着会被再次叫醒 */
         public long stayAwakeUntilTick = 0;
         /** 下次复查「刚被叫醒期间又睡着」的服务器 tick（不必每 tick 复查） */
         public long nextStayAwakeCheckTick = 0;

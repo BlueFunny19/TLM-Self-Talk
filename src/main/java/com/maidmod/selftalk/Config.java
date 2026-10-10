@@ -340,7 +340,7 @@ public final class Config {
                 下一次叫她视为新一轮并重新随机 N。""")
                 .defineInRange("streakResetSeconds", 120, 1, 3600);
         WAKE_STAY_AWAKE_SECONDS = builder.comment("""
-                被叫醒后保持清醒的时长（秒）：这段时间内她若又进入睡眠会被再次叫醒，
+                被叫醒后保持清醒的时长（秒）：这段时间内她不会再走向床睡觉，
                 避免夜间日程下刚被叫醒就立刻睡回去。0 表示不做处理。""")
                 .defineInRange("stayAwakeSeconds", 120, 0, 3600);
         builder.pop();

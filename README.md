@@ -95,7 +95,7 @@
   - `sleep.wakeMinCalls` / `sleep.wakeMaxCalls`（默认 2 / 5，范围 1~20，含两端）：每次睡眠中的连叫开始时在 [最小, 最大] 内随机 N；
     第 1..N-1 次只嘟囔，第 N 次醒来。`1` 表示第一次就叫醒。
   - `sleep.wakeStreakResetSeconds`（默认 120 秒）：距上一次叫她超过该时长，连叫计数清零，下一次叫她视为新一轮并重新随机 N。
-  - `sleep.wakeStayAwakeSeconds`（默认 120 秒，0 表示不处理）：被叫醒后这段时间内她若又睡着会被再次叫醒，避免夜间日程下刚被叫醒就立刻睡回去。
+  - `sleep.wakeStayAwakeSeconds`（默认 120 秒，0 表示不处理）：被叫醒后这段时间内她不会再走向床睡觉，避免夜间日程下刚被叫醒就立刻睡回去。
   - **「叫不醒」会拦截玩家聊天入口**（TLM 的 `MaidAIChatManager#chat`）：嘟囔的那几次本次请求被取消，
     因此不会向 LLM 发送玩家那句话、不产生 token 消耗、也不写入聊天记录；玩家不会看到「思考中」提示或任何报错。
     只拦截「真玩家、且该女仆的主人就是他或他在女仆 8 格内」的调用，其余（包括其它 Mod 通过 `chat()` 发起的内部调用）一律放行。
@@ -236,8 +236,8 @@ While a maid is fast asleep (she went to bed under a TLM night schedule) there a
     N is rolled in [min, max]; calls 1..N-1 only mumble, call N wakes her. `1` means she wakes on the first call.
   - `sleep.wakeStreakResetSeconds` (120 seconds by default): if more than that passes since the last call, the counter
     resets and the next call starts a new streak with a fresh N.
-  - `sleep.wakeStayAwakeSeconds` (120 seconds by default, 0 disables): after being woken, if she falls asleep again
-    within that window she is woken once more, so she does not drop straight back to sleep under a night schedule.
+  - `sleep.wakeStayAwakeSeconds` (120 seconds by default, 0 disables): after being woken, she will not head back to
+    bed within that window, so she does not drop straight back to sleep under a night schedule.
   - **Hard to wake intercepts the player chat entry point** (TLM's `MaidAIChatManager#chat`): on the mumble calls the
     request is cancelled, so the player's line is never sent to the LLM, consumes no tokens and is not written to the
     chat history; the player sees no "thinking" indicator and no error.

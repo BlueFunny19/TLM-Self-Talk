@@ -3,6 +3,7 @@ package com.maidmod.selftalk;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 「叫不醒」连叫判定的纯逻辑单测（{@link WakeResistance}，不依赖 Minecraft／TLM）。
  * <p>
  * 覆盖：首次叫、N 的取值范围（含 MIN=MAX、MIN=1、倒置配置）、超时清零、
- * 醒来后清零、多只女仆互不影响。
+ * 醒来后清零、多只女仆互不影响，以及「醒后保持清醒」窗口的有效期判定。
  */
 class WakeResistanceTest {
 
@@ -110,6 +111,20 @@ class WakeResistanceTest {
         assertEquals(2, maidA.calls(), "另一只女仆被叫醒不应影响本女仆的连叫计数");
         assertEquals(0, maidB.calls());
         assertNotEquals(maidA.calls(), maidB.calls());
+    }
+
+    @Test
+    void stayAwakeWindowIsOnlyActiveBeforeItsEndTick() {
+        assertTrue(WakeResistance.isStayAwake(2400, 0), "窗口开始前后、截止前都应有效");
+        assertTrue(WakeResistance.isStayAwake(2400, 2399), "截止前最后一 tick 仍然有效");
+        assertFalse(WakeResistance.isStayAwake(2400, 2400), "到达截止 tick 即失效");
+        assertFalse(WakeResistance.isStayAwake(2400, 9999), "过了截止 tick 失效");
+    }
+
+    @Test
+    void stayAwakeWindowOfZeroMeansNoWindow() {
+        assertFalse(WakeResistance.isStayAwake(0, 0), "0 表示没有窗口，即使当前 tick 也是 0");
+        assertFalse(WakeResistance.isStayAwake(0, 100));
     }
 
     @Test

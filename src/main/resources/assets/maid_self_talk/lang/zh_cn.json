@@ -96,7 +96,7 @@
   "config.maid_self_talk.sleep.wake_streak_reset": "连叫清零时长（秒）",
   "config.maid_self_talk.sleep.wake_streak_reset.tooltip": "距上一次叫她超过该时长，连叫计数清零，下一次叫她视为新一轮并重新随机 N。",
   "config.maid_self_talk.sleep.wake_stay_awake": "醒后保持清醒（秒）",
-  "config.maid_self_talk.sleep.wake_stay_awake.tooltip": "被叫醒后这段时间内她若又进入睡眠会被再次叫醒，避免夜间日程下刚被叫醒就立刻睡回去。0 表示不处理。",
+  "config.maid_self_talk.sleep.wake_stay_awake.tooltip": "被叫醒后这段时间内她不会再走向床睡觉，避免夜间日程下刚被叫醒就立刻睡回去。0 表示不处理。",
   "ai.maid_self_talk.chat.tool_call.query_nearby_maids": "查看附近的女仆",
   "config.maid_self_talk.screen.self_talk_button.tip": "女仆设置",
   "config.maid_self_talk.screen.player_settings.title": "女仆设置",

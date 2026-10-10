@@ -27,6 +27,16 @@ public final class WakeResistance {
     public enum Decision { MUMBLE, WAKE }
 
     /**
+     * 「醒后保持清醒」窗口此刻是否仍然有效。
+     *
+     * @param untilTick 窗口截止的服务器 tick；0 表示没有窗口
+     * @param nowTick   当前服务器 tick
+     */
+    public static boolean isStayAwake(long untilTick, long nowTick) {
+        return untilTick != 0 && nowTick < untilTick;
+    }
+
+    /**
      * 一只女仆的连叫记录（可变，仅服务端主线程访问）。
      * <p>
      * {@code lastCallTick} 用 {@link Long#MIN_VALUE} 表示「尚无记录」，

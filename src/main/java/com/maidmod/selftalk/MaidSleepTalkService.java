@@ -233,6 +233,21 @@ public final class MaidSleepTalkService {
         return applyLanguage(SleepTalkPrompts.wakeUpNote(SelfTalkContexts.isChinese(language)), language);
     }
 
+    /**
+     * 她此刻是否处在「被叫醒后保持清醒」的窗口里。
+     * <p>
+     * 供 {@code MaidBedTaskMixin} 调用：窗口内不让她开始走向床、上床睡觉。
+     * 只读状态，不创建记录；非服务端、没有记录、窗口已过期都返回 {@code false}。
+     */
+    public static boolean isStayingAwake(EntityMaid maid) {
+        if (maid == null || !(maid.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        SelfTalkState.State state = SelfTalkState.peek(maid.getId());
+        return state != null
+                && WakeResistance.isStayAwake(state.stayAwakeUntilTick, level.getServer().getTickCount());
+    }
+
     /** 该玩家是否与女仆相关：主人，或（同维度）8 格内的玩家 */
     private static boolean isRelatedPlayer(EntityMaid maid, ServerPlayer player) {
         UUID ownerUuid = maid.getOwnerUUID();

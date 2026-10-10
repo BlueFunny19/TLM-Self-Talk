@@ -151,10 +151,11 @@ public final class SelfTalkHandler {
             state.sleepTalkPending = false;
             state.sleepTalkPendingSinceTick = -1;
         }
-        // 被叫醒后的「别马上又睡回去」：WAKE_STAY_AWAKE_SECONDS 内若她又进入睡眠（夜间日程下
-        // TLM 的 MaidBedTask 会重新让她入睡），隔几 tick 再叫醒她。不改日程，也不动玩家的作息设置。
+        // 被叫醒后的「别马上又睡回去」：WAKE_STAY_AWAKE_SECONDS 窗口内由 MaidBedTaskMixin 不让 TLM 的
+        // MaidBedTask 开始（她不会走向床、也不会上床）。这里只是兜底：如果混入没有生效，或她被别的途径弄睡着，
+        // 隔几 tick 再叫醒她。不改日程，也不动玩家的作息设置。
         // 放在 AI 前置之前：即使 LLM 被关闭／站点不可用，这个窗口也应照常生效。
-        if (state.stayAwakeUntilTick != 0 && serverTick < state.stayAwakeUntilTick) {
+        if (WakeResistance.isStayAwake(state.stayAwakeUntilTick, serverTick)) {
             if (serverTick >= state.nextStayAwakeCheckTick) {
                 state.nextStayAwakeCheckTick = serverTick + STAY_AWAKE_CHECK_INTERVAL_TICKS;
                 if (maid.isSleeping()) {
