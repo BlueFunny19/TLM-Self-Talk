@@ -1,12 +1,23 @@
 # TLM Self-Talk
 
-> ⚠️ **AI 辅助开发声明**
+> [!WARNING]
+> AI 辅助开发声明
 >
-> 本项目的 `forge-1.20.1` 分支（即本分支）是在原项目基础上，借助 AI（主要是 Claude 与 DeepSeek 等模型）以 **vibe coding** 的方式添加定制功能的版本。代码有进行人工审核，但**仍然存在风险**（可能有未被发现的错误、与其他模组的兼容问题等）。**如果你介意，请不要使用本分支。**
+> 本项目的 `forge-1.20.1` 分支（即本分支）是在原项目基础上，借助 AI 以 vibe coding 的方式添加定制功能的版本；
+>
+> 辅助开发使用的模型为 Claude Sonnet 5.5 和 DeepSeek V4.1 Flash；
+>
+> 代码经过人工逐行校对，但作者水平有限，仍然存在风险（可能有未被发现的错误、与其他模组的兼容问题等）；
+>
+> 如果你介意，请不要使用本分支
 
-> 🔗 **建议搭配改版的 [TLM-Sincerely](https://github.com/BlueFunny19/TLM-Sincerely)（车万女仆：真心为你，`1.20.1forge` 分支）一起使用。** 它的「转告」工具通过本分支提供的 `SelfTalkApi` 让女仆之间互相传话；单独使用本分支同样可以，只是少了这项联动。
+> 建议搭配改版的 [TLM-Sincerely](https://github.com/BlueFunny19/TLM-Sincerely)（车万女仆：真心为你，`1.20.1forge` 分支）一起使用；
 >
-> 文中标有「**改版新增**」「**改版变更**」的条目，就是本分支（版本 `1.5.0`）相对原版（`1.3.1`）新增或修改的内容。
+> 它的「转告」工具通过本分支提供的 `SelfTalkApi` 让女仆之间互相传话；
+>
+> 不搭配也可以正常使用本分支，只是少了这项联动；
+>
+> 文中标有「**改版新增**」「**改版变更**」的条目，就是本分支相对原版新增或修改的内容
 
 给 [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid)（车万女仆）添加「自言自语 / 欢迎语 / 互相对话」能力的附属 Mod。
 
@@ -124,13 +135,24 @@ boolean accepted = SelfTalkApi.relayToMaid(from, to, "主人让我告诉你，�
 
 # TLM Self-Talk (English)
 
-> ⚠️ **AI-assisted development notice**
+> [!WARNING]
+> AI-assisted development notice
 >
-> This branch (`forge-1.20.1`) adds custom features on top of the original project through AI-assisted *vibe coding* (mainly Claude and DeepSeek models). The code has been reviewed by a human, but **risks remain** (undiscovered bugs, compatibility issues with other mods, and so on). **If that matters to you, please do not use this branch.**
+> The `forge-1.20.1` branch (this branch) adds custom features on top of the original project through AI-assisted vibe coding.
+>
+> The models used for development are Claude Sonnet 5.5 and DeepSeek V4.1 Flash.
+>
+> The code was proofread line by line by a human, but the author's skills are limited, so risks remain (undiscovered bugs, compatibility issues with other mods, and so on).
+>
+> If that matters to you, please do not use this branch.
 
-> 🔗 **Best used together with the modified [TLM-Sincerely](https://github.com/BlueFunny19/TLM-Sincerely) (branch `1.20.1forge`).** Its `tell_maid` tool uses the `SelfTalkApi` provided by this branch so maids can pass words on to each other; this branch works fine on its own, you just lose that link.
+> Best used together with the modified [TLM-Sincerely](https://github.com/BlueFunny19/TLM-Sincerely) (branch `1.20.1forge`).
 >
-> Items marked **added in this fork** / **changed in this fork** are what this branch (version `1.5.0`) adds or modifies compared with the original (`1.3.1`).
+> Its `tell_maid` tool uses the `SelfTalkApi` provided by this branch so maids can pass words on to each other.
+>
+> This branch also works on its own, you just lose that link.
+>
+> Items marked **added in this fork** / **changed in this fork** are what this branch adds or modifies compared with the original.
 
 A mod that adds **self-talk / welcome greetings / maid-to-maid chats** to [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid) maids.
 
